@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmd.exe /c \"python -m pip list 2>&1 | findstr pptx\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
