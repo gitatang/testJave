@@ -1,13 +1,16 @@
 package game.netty.handler;
 
+import game.netty.handler.logic.ProtoMessage;
 import game.protocol.*;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufInputStream;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import util.JsonUtil;
 
+import java.io.InputStream;
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.function.BiFunction;
 
@@ -29,6 +32,7 @@ public class GameDecodeHandler extends MessageToMessageDecoder<ByteBuf> {
 		}
 		byte version = byteBuf.readByte();
 		byte type = byteBuf.readByte();
+		long requestId = byteBuf.readLong();
 		int bodyLength = byteBuf.readInt();
 
 		if (bodyLength <= 0 || bodyLength > byteBuf.readableBytes()) {
@@ -41,21 +45,17 @@ public class GameDecodeHandler extends MessageToMessageDecoder<ByteBuf> {
 		// slice 不会修改原 ByteBuf
 		ByteBuf slicedBuf = byteBuf.slice(byteBuf.readerIndex(), bodyLength);
 		try  {
-
-
-			Class<? extends Message> clazz =
+			Class<? extends com.google.protobuf.MessageLite> msgClass =
 					MessageRegistry.getMessageClass(version, type);
-
-
-			if (clazz == null) {
+			if (msgClass == null) {
 				throw new IllegalStateException(
 						"Unknown message version=" + version + ", type=" + type);
 			}
-
-			Message message = JsonUtil.read(slicedBuf, clazz);
-			if(null != message){
-				out.add(message);
-			}
+			// 使用 Proto 解析
+			com.google.protobuf.MessageLite msg = parseProto(slicedBuf, msgClass);
+			// 包装成 ProtoMessage
+			ProtoMessage<?> protoMsg = new ProtoMessage<>(version, type, requestId, msg,msgClass);
+			out.add(protoMsg);
 
 		} catch (Exception e) {
 			LOGGER.error("消息解码失败，长度: {}", bodyLength, e);
@@ -64,4 +64,14 @@ public class GameDecodeHandler extends MessageToMessageDecoder<ByteBuf> {
 			byteBuf.skipBytes(bodyLength);
 		}
 	}
+
+	private com.google.protobuf.MessageLite parseProto(ByteBuf buf, Class<? extends com.google.protobuf.MessageLite> clazz) throws Exception {
+		// 使用 ByteBufInputStream 避免拷贝
+		try (ByteBufInputStream input = new ByteBufInputStream(buf)) {
+			// 获取 parseFrom 方法
+			Method method = clazz.getMethod("parseFrom", InputStream.class);
+			return (com.google.protobuf.MessageLite) method.invoke(null, input);
+		}
+	}
+
 }

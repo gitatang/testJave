@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package com.example;
+
+option java_package = "com.game";
+option java_outer_classname = "UserProto";
+
+// 版本1
+message LoginReq {
+  string username = 1;
+  string password = 2;
+}
+
+// 版本2
+message LoginReqV2 {
+  string username = 1;
+  string password = 2;
+  string device_id = 3;
+}
+
+// 登录响应
+message LoginResp {
+  bool success = 1;
+  string msg = 2;
+}
+
+message ChatMessage {
+  string Sender = 1;
+  string Content = 2;
+  int64 Timestamp = 3;
+}
